@@ -8,19 +8,22 @@
         For example:  RemovableDisk = H,   Archive = F.
     Changelist:
         04/04/2023:  Added ValidatePattern to restrict input to single drive letters, and added code to pass -WhatIf preference to robocopy.
+        04/05/2023:  Allowed for user to enter drive letters with or without colon.  Changed the RegEx, added IF statements to add the colon if absent.
 .EXAMPLE
     Backup-MemoryCards.ps1       (No arguments. You will be prompted for arguments, but miss out on using -WhatIf.)
 .EXAMPLE
-    Backup-MemoryCards.ps1 -RemovableDrive H -ArchiveDrive F
+    Backup-MemoryCards.ps1 -RemovableDrive H  -ArchiveDrive F          (Drive letters without colon)
+.EXAMPLE
+    Backup-MemoryCards.ps1 -RemovableDrive H: -ArchiveDrive F:         (Drive letters with colon)
 #>
 [CmdletBinding(SupportsShouldProcess)]    # This is for implementing -WhatIf, which can be passed to robocopy as the '/L' flag.   (List only, don't copy.)
 param(
     [Parameter(Mandatory=$true)]
-    [ValidatePattern("^[d-zD-Z]$")]    # Parameter validation restricts the future use of that variable to the confines of the validation pattern.
+    [ValidatePattern("^[d-zD-Z]:?$")]    # Parameter validation restricts the future use of that variable to the confines of the validation pattern.
     [string]$RemovableDrive,
 
     [Parameter(Mandatory=$true)]
-    [ValidatePattern("^[d-zD-Z]$")]
+    [ValidatePattern("^[d-zD-Z]:?$")]
     [string]$ArchiveDrive
 )
 
@@ -30,23 +33,30 @@ if($RemovableDrive.ToLower() -eq $ArchiveDrive.ToLower()){
     break
 }
 
-# $RemovableDrive+=":"     # You can't modify variables beyond their validate patterns, so this isn't possible.
-# $ArchiveDrive+=":"
+# If the user entered drive letters without a colon, add it.  NOTE: modifying a parameter which has ValidatePattern only works if the modification is in the validation rule.
+if($RemovableDrive.Length -eq 1){
+    $RemovableDrive+=":"
+}
+
+if($ArchiveDrive.Length -eq 1){
+    $ArchiveDrive+=":"
+}
+
 
 # Verify these are legit drives.
-if (-not(Test-Path $RemovableDrive":")){
+if (-not(Test-Path $RemovableDrive)){
     Write-Host "Memory card not found at: $RemovableDrive"
     break
 }
 
-if (-not(Test-Path $ArchiveDrive":")){
+if (-not(Test-Path $ArchiveDrive)){
     Write-Host "Archive drive not found at: $ArchiveDrive"
     break
 }
 
 # Get CardID
-if(Test-Path -Path $RemovableDrive":"\CardID.txt){
-    $CardID = Get-Content -Path $RemovableDrive":"\CardID.txt
+if(Test-Path -Path $RemovableDrive\CardID.txt){
+    $CardID = Get-Content -Path $RemovableDrive\CardID.txt
 }
 else{
     Write-Host "CardID.txt not found."
@@ -54,8 +64,8 @@ else{
 }
 
 # Create destination folder
-if (-not (Test-Path -Path $ArchiveDrive":"\MemoryCards\$CardID)){
-    mkdir $ArchiveDrive":"\MemoryCards\$CardID
+if (-not (Test-Path -Path $ArchiveDrive\MemoryCards\$CardID)){
+    mkdir $ArchiveDrive\MemoryCards\$CardID
 }
 
 $WhatIf = ''     # Initialize to empty string
@@ -64,4 +74,4 @@ if($WhatIfPreference){       # If script was called with -WhatIf, $WhatIfPrefere
 }
 
 # Robocopy the files.  Robocopy defaults to skipping empty folders.
-robocopy $RemovableDrive":"\   $ArchiveDrive":"\MemoryCards\$CardID\ /s  $WhatIf      # /s == recursive
+robocopy $RemovableDrive\   $ArchiveDrive\MemoryCards\$CardID\ /s  $WhatIf      # /s == recursive
